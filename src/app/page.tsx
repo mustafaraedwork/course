@@ -1,103 +1,200 @@
-import Image from "next/image";
+import Link from 'next/link'
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gray-50">
+      {/* Navigation */}
+      <nav className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-blue-600">
+                أكاديمية التسويق الرقمي
+              </h1>
+            </div>
+            <div className="flex space-x-4">
+              <Link 
+                href="/auth" 
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                تسجيل الدخول
+              </Link>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative bg-gradient-to-br from-blue-50 to-blue-100 py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
+              تعلم التسويق الرقمي
+              <span className="text-blue-600 block">من الصفر للاحتراف</span>
+            </h2>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              كورس شامل لتعليم Facebook و Instagram Ads بطريقة عملية ومبسطة. 
+              ابدأ رحلتك في عالم التسويق الرقمي اليوم!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                href="/auth" 
+                className="bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                ابدأ التعلم الآن
+              </Link>
+              <button className="border-2 border-blue-600 text-blue-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-blue-50 transition-colors">
+                شاهد الفيديو التعريفي
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Problem & Solution */}
+      <section className="py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-12">
+            {/* Problem */}
+            <div className="text-center">
+              <div className="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-3xl">😫</span>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">المشكلة</h3>
+              <ul className="text-gray-600 space-y-3 text-right">
+                <li>• صعوبة في فهم إعلانات فيسبوك وإنستجرام</li>
+                <li>• إهدار الأموال على إعلانات غير فعالة</li>
+                <li>• عدم معرفة كيفية استهداف العملاء المناسبين</li>
+                <li>• نقص في المحتوى العربي عالي الجودة</li>
+              </ul>
+            </div>
+
+            {/* Solution */}
+            <div className="text-center">
+              <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-3xl">🎯</span>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">الحل</h3>
+              <ul className="text-gray-600 space-y-3 text-right">
+                <li>• شرح مبسط وعملي لجميع أساسيات التسويق</li>
+                <li>• استراتيجيات مثبتة لتحقيق أفضل النتائج</li>
+                <li>• دروس تطبيقية خطوة بخطوة</li>
+                <li>• محتوى عربي احترافي ومحدث</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Course Content */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h3 className="text-3xl font-bold text-gray-900 mb-4">
+              محتويات الكورس
+            </h3>
+            <p className="text-xl text-gray-600">
+              4 فصول شاملة تغطي كل ما تحتاجه في التسويق الرقمي
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Chapter 1 */}
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                <span className="text-blue-600 font-bold">1</span>
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                مقدمة في التسويق الرقمي
+              </h4>
+              <p className="text-gray-600 text-sm mb-3">
+                أساسيات التسويق الرقمي ووضع الاستراتيجيات
+              </p>
+              <span className="text-blue-600 text-sm font-medium">3 دروس</span>
+            </div>
+
+            {/* Chapter 2 */}
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                <span className="text-blue-600 font-bold">2</span>
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                Facebook و Instagram Ads
+              </h4>
+              <p className="text-gray-600 text-sm mb-3">
+                إنشاء وإدارة الحملات الإعلانية بفعالية
+              </p>
+              <span className="text-blue-600 text-sm font-medium">5 دروس</span>
+            </div>
+
+            {/* Chapter 3 */}
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                <span className="text-blue-600 font-bold">3</span>
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                تحسين الحملات
+              </h4>
+              <p className="text-gray-600 text-sm mb-3">
+                قراءة الإحصائيات وتحسين الأداء
+              </p>
+              <span className="text-blue-600 text-sm font-medium">4 دروس</span>
+            </div>
+
+            {/* Chapter 4 */}
+            <div className="bg-gray-50 p-6 rounded-lg">
+              <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                <span className="text-blue-600 font-bold">4</span>
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                الاستراتيجيات المتقدمة
+              </h4>
+              <p className="text-gray-600 text-sm mb-3">
+                تقنيات متقدمة لزيادة العائد على الاستثمار
+              </p>
+              <span className="text-blue-600 text-sm font-medium">6 دروس</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-16 bg-blue-600">
+        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
+          <h3 className="text-3xl font-bold text-white mb-4">
+            جاهز لتبدأ رحلتك في التسويق الرقمي؟
+          </h3>
+          <p className="text-xl text-blue-100 mb-8">
+            انضم لآلاف الطلاب الذين حققوا نجاحاً باهراً في مجال التسويق الرقمي
+          </p>
+          <Link 
+            href="/auth" 
+            className="bg-white text-blue-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition-colors inline-block"
+          >
+            ابدأ الآن مجاناً
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h4 className="text-2xl font-bold mb-4">أكاديمية التسويق الرقمي</h4>
+            <p className="text-gray-400 mb-6">
+              منصة تعليمية متخصصة في تعليم التسويق الرقمي باللغة العربية
+            </p>
+            <div className="flex justify-center space-x-6">
+              <a href="#" className="text-gray-400 hover:text-white">سياسة الخصوصية</a>
+              <a href="#" className="text-gray-400 hover:text-white">شروط الاستخدام</a>
+              <a href="#" className="text-gray-400 hover:text-white">تواصل معنا</a>
+            </div>
+            <p className="text-gray-500 mt-6">
+              © 2024 أكاديمية التسويق الرقمي. جميع الحقوق محفوظة.
+            </p>
+          </div>
+        </div>
       </footer>
     </div>
-  );
+  )
 }
