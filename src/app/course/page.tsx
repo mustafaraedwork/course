@@ -323,13 +323,26 @@ export default function CoursePage() {
                           </div>
                         </div>
                         
+                        {/* تم تحديث روابط الدروس هنا */}
                         {!lesson.isLocked && (
-                          <Link 
-                            href={`/course/chapter-${chapter.id}/lesson-${lesson.id}`}
-                            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-                          >
-                            {lesson.completed ? 'إعادة المشاهدة' : 'بدء الدرس'}
+                          <Link href={`/course/${chapter.id}/${lesson.id}`}>
+                            <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200 hover:text-blue-700">
+                              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                              </svg>
+                              {lesson.completed ? 'إعادة المشاهدة' : 'مشاهدة الدرس'}
+                            </button>
                           </Link>
+                        )}
+                        
+                        {/* للدروس المقفلة */}
+                        {lesson.isLocked && (
+                          <div className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
+                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            </svg>
+                            مقفل
+                          </div>
                         )}
                       </div>
                     ))}

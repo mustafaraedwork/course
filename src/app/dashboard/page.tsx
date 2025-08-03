@@ -1,8 +1,11 @@
+// 📊 تحديث صفحة Dashboard - app/dashboard/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useProgress } from '@/hooks/useProgress';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface User {
   id: string
@@ -15,6 +18,14 @@ interface User {
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // 🆕 استخدام الهوك الجديد للحصول على البيانات الفعلية
+  const { 
+    progressData, 
+    loading: progressLoading, 
+    formatWatchTime,
+    getAchievements 
+  } = useProgress(user?.id)
 
   useEffect(() => {
     checkUser()
@@ -43,16 +54,12 @@ export default function DashboardPage() {
     window.location.href = '/'
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">جاري التحميل...</p>
-        </div>
-      </div>
-    )
+  if (loading || progressLoading) {
+    return <LoadingSpinner fullScreen text="جارٍ تحميل لوحة التحكم..." />
   }
+
+  // 🆕 الحصول على الإنجازات
+  const achievements = getAchievements()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -90,9 +97,25 @@ export default function DashboardPage() {
           <p className="text-blue-100 text-lg">
             جاهز لمتابعة رحلتك التعليمية في التسويق الرقمي؟
           </p>
+          
+          {/* 🆕 شريط التقدم العام */}
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-blue-100">التقدم العام</span>
+              <span className="text-white font-bold">
+                {Math.round(progressData.completionPercentage)}%
+              </span>
+            </div>
+            <div className="w-full bg-blue-400 rounded-full h-3">
+              <div 
+                className="bg-white h-3 rounded-full transition-all duration-500"
+                style={{ width: `${progressData.completionPercentage}%` }}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - 🆕 استخدام البيانات الفعلية */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {/* التقدم العام */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -102,12 +125,14 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">التقدم العام</p>
-                <p className="text-2xl font-bold text-gray-900">0%</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {Math.round(progressData.completionPercentage)}%
+                </p>
               </div>
             </div>
           </div>
 
-          {/* الدروس المكتملة */}
+          {/* الدروس المكتملة - 🆕 بيانات فعلية */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
@@ -115,12 +140,14 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">الدروس المكتملة</p>
-                <p className="text-2xl font-bold text-gray-900">0 / 18</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {progressData.completedLessons} / {progressData.totalLessons}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* الوقت المستغرق */}
+          {/* الوقت المستغرق - 🆕 بيانات فعلية */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center">
               <div className="p-2 bg-orange-100 rounded-lg">
@@ -128,118 +155,142 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">الوقت المستغرق</p>
-                <p className="text-2xl font-bold text-gray-900">0 ساعة</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatWatchTime(progressData.totalWatchTime)}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* النقاط */}
+          {/* النقاط - 🆕 بيانات فعلية */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 rounded-lg">
-                <span className="text-2xl">⭐</span>
+                <span className="text-2xl">🏆</span>
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">النقاط</p>
-                <p className="text-2xl font-bold text-gray-900">0</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {progressData.totalPoints}
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* متابعة التعلم */}
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              متابعة التعلم
-            </h3>
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">
-                  ابدأ رحلتك التعليمية
-                </h4>
-                <p className="text-gray-600 text-sm mb-4">
-                  مرحباً بك في أكاديمية التسويق الرقمي! ابدأ بالفصل الأول لتتعلم أساسيات التسويق الرقمي.
-                </p>
-                <Link 
-                  href="/course"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  ابدأ الكورس
-                  <span className="mr-2">→</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* الفصول */}
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              فصول الكورس
-            </h3>
-            <div className="space-y-3">
-              {[
-                { id: 1, title: 'مقدمة في التسويق الرقمي', lessons: 3, progress: 0 },
-                { id: 2, title: 'Facebook و Instagram Ads', lessons: 5, progress: 0 },
-                { id: 3, title: 'تحسين الحملات', lessons: 4, progress: 0 },
-                { id: 4, title: 'الاستراتيجيات المتقدمة', lessons: 6, progress: 0 }
-              ].map((chapter) => (
-                <div key={chapter.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        {/* 🆕 إضافة قسم للإنجازات */}
+        {achievements.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">إنجازاتك الأخيرة 🎉</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {achievements.slice(0, 3).map((achievement) => (
+                <div key={achievement.id} className="flex items-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <span className="text-3xl mr-3">{achievement.icon}</span>
                   <div>
-                    <h4 className="font-medium text-gray-900">{chapter.title}</h4>
-                    <p className="text-sm text-gray-600">{chapter.lessons} دروس</p>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-20 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all"
-                        style={{ width: `${chapter.progress}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-sm text-gray-500">{chapter.progress}%</span>
+                    <h3 className="font-semibold text-gray-900">{achievement.title}</h3>
+                    <p className="text-sm text-gray-600">{achievement.description}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        )}
+
+        {/* 🆕 إضافة معلومات الـ Streak */}
+        {progressData.currentStreak > 0 && (
+          <div className="bg-gradient-to-r from-orange-400 to-red-500 rounded-lg p-6 mb-8 text-white">
+            <div className="flex items-center">
+              <span className="text-4xl mr-4">🔥</span>
+              <div>
+                <h2 className="text-2xl font-bold">
+                  {progressData.currentStreak} أيام متتالية!
+                </h2>
+                <p className="text-orange-100">
+                  أداء رائع! حافظ على هذا الإلتزام المميز
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* ابدأ الكورس */}
+          <Link href="/course">
+            <div className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer">
+              <div className="flex items-center mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <span className="text-2xl">🎯</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mr-3">
+                  {progressData.completedLessons === 0 ? 'ابدأ الكورس' : 'متابعة التعلم'}
+                </h3>
+              </div>
+              <p className="text-gray-600 text-sm">
+                {progressData.completedLessons === 0 
+                  ? 'ابدأ رحلتك في تعلم التسويق الرقمي'
+                  : `متابعة من حيث توقفت - ${progressData.completedLessons} دروس مكتملة`
+                }
+              </p>
+            </div>
+          </Link>
+
+          {/* مكتبة الاستراتيجيات */}
+          <Link href="/strategies">
+            <div className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer">
+              <div className="flex items-center mb-4">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <span className="text-2xl">📚</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mr-3">مكتبة الاستراتيجيات</h3>
+              </div>
+              <p className="text-gray-600 text-sm">
+                استراتيجيات جاهزة للتطبيق في مشاريعك
+              </p>
+            </div>
+          </Link>
+
+          {/* الملف الشخصي */}
+          <Link href="/profile">
+            <div className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer">
+              <div className="flex items-center mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <span className="text-2xl">👤</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mr-3">الملف الشخصي</h3>
+              </div>
+              <p className="text-gray-600 text-sm">
+                إعدادات الحساب وإحصائيات التعلم
+              </p>
+            </div>
+          </Link>
         </div>
 
-        {/* Quick Links */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Link 
-            href="/course" 
-            className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
-          >
-            <div className="text-center">
-              <span className="text-4xl mb-4 block">📚</span>
-              <h3 className="font-semibold text-gray-900 mb-2">الكورس الكامل</h3>
-              <p className="text-gray-600 text-sm">اطلع على جميع فصول ودروس الكورس</p>
+        {/* 🆕 Recent Activity - إذا كان هناك تقدم */}
+        {progressData.completedLessons > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">النشاط الأخير</h2>
+            <div className="space-y-3">
+              <div className="flex items-center p-3 bg-green-50 rounded-lg">
+                <span className="text-green-600 mr-3">✅</span>
+                <div>
+                  <p className="text-gray-900 font-medium">أكملت {progressData.completedLessons} درس</p>
+                  <p className="text-gray-500 text-sm">إجمالي وقت المشاهدة: {formatWatchTime(progressData.totalWatchTime)}</p>
+                </div>
+              </div>
+              
+              {progressData.totalPoints > 0 && (
+                <div className="flex items-center p-3 bg-blue-50 rounded-lg">
+                  <span className="text-blue-600 mr-3">🏆</span>
+                  <div>
+                    <p className="text-gray-900 font-medium">حصلت على {progressData.totalPoints} نقطة</p>
+                    <p className="text-gray-500 text-sm">من خلال حل الاختبارات بنجاح</p>
+                  </div>
+                </div>
+              )}
             </div>
-          </Link>
-
-          <Link 
-            href="/strategies" 
-            className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
-          >
-            <div className="text-center">
-              <span className="text-4xl mb-4 block">🎯</span>
-              <h3 className="font-semibold text-gray-900 mb-2">الاستراتيجيات</h3>
-              <p className="text-gray-600 text-sm">استراتيجيات جاهزة للتطبيق</p>
-            </div>
-          </Link>
-
-          <Link 
-            href="/profile" 
-            className="bg-white p-6 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
-          >
-            <div className="text-center">
-              <span className="text-4xl mb-4 block">👤</span>
-              <h3 className="font-semibold text-gray-900 mb-2">الملف الشخصي</h3>
-              <p className="text-gray-600 text-sm">إدارة حسابك وإعداداتك</p>
-            </div>
-          </Link>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
