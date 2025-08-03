@@ -1,11 +1,10 @@
-// 📊 تحديث صفحة Dashboard - app/dashboard/page.tsx
+// 📊 لوحة التحكم البسيطة - app/dashboard/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
-import { useProgress } from '@/hooks/useProgress';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 interface User {
   id: string
@@ -18,48 +17,110 @@ interface User {
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // 🆕 استخدام الهوك الجديد للحصول على البيانات الفعلية
-  const { 
-    progressData, 
-    loading: progressLoading, 
-    formatWatchTime,
-    getAchievements 
-  } = useProgress(user?.id)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    checkUser()
+    let isMounted = true
+
+    const checkUserAccess = async () => {
+      try {
+        console.log('🔍 Dashboard - checking user access...')
+        
+        // انتظار قصير للسماح للجلسة بالتحميل
+        await new Promise(resolve => setTimeout(resolve, 200))
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          setError('خطأ في الجلسة')
+        }
+
+        if (!isMounted) return
+
+        if (!session?.user) {
+          console.log('❌ No user session, redirecting to auth...')
+          // استخدام window.location بدلاً من router.push
+          window.location.href = '/auth?redirectTo=/dashboard'
+          return
+        }
+        
+        console.log('✅ User session found:', session.user.email)
+        setUser(session.user as User)
+        
+      } catch (error) {
+        console.error('خطأ في التحقق من المستخدم:', error)
+        if (isMounted) {
+          setError('خطأ في التحقق من صحة الدخول')
+          // في حالة الخطأ، إعادة توجيه للمصادقة
+          setTimeout(() => {
+            window.location.href = '/auth?redirectTo=/dashboard'
+          }, 2000)
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    checkUserAccess()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
-  const checkUser = async () => {
+  const handleLogout = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        window.location.href = '/auth'
-        return
+      console.log('🚪 Logging out...')
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Logout error:', error)
       }
       
-      setUser(user as User)
+      // مسح أي بيانات محلية
+      if (typeof window !== 'undefined') {
+        localStorage.clear()
+        sessionStorage.clear()
+      }
+      
+      // إعادة توجيه للصفحة الرئيسية
+      window.location.href = '/'
     } catch (error) {
-      console.error('خطأ في التحقق من المستخدم:', error)
-      window.location.href = '/auth'
-    } finally {
-      setLoading(false)
+      console.error('Logout error:', error)
+      window.location.href = '/'
     }
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
-  }
-
-  if (loading || progressLoading) {
+  if (loading) {
     return <LoadingSpinner fullScreen text="جارٍ تحميل لوحة التحكم..." />
   }
 
-  // 🆕 الحصول على الإنجازات
-  const achievements = getAchievements()
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">
+            <svg className="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">{error}</h1>
+          <p className="text-gray-600 mb-4">سيتم إعادة توجيهك لصفحة تسجيل الدخول...</p>
+          <Link href="/auth" className="text-blue-600 hover:text-blue-800">
+            انقر هنا إذا لم يتم التوجيه تلقائياً
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -73,7 +134,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
               <div className="text-sm text-gray-600">
                 مرحباً، {user?.user_metadata?.full_name || user?.email}
               </div>
@@ -98,24 +159,22 @@ export default function DashboardPage() {
             جاهز لمتابعة رحلتك التعليمية في التسويق الرقمي؟
           </p>
           
-          {/* 🆕 شريط التقدم العام */}
+          {/* شريط التقدم العام */}
           <div className="mt-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-blue-100">التقدم العام</span>
-              <span className="text-white font-bold">
-                {Math.round(progressData.completionPercentage)}%
-              </span>
+              <span className="text-white font-bold">0%</span>
             </div>
             <div className="w-full bg-blue-400 rounded-full h-3">
               <div 
                 className="bg-white h-3 rounded-full transition-all duration-500"
-                style={{ width: `${progressData.completionPercentage}%` }}
+                style={{ width: '0%' }}
               />
             </div>
           </div>
         </div>
 
-        {/* Stats Grid - 🆕 استخدام البيانات الفعلية */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {/* التقدم العام */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -125,14 +184,12 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">التقدم العام</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {Math.round(progressData.completionPercentage)}%
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0%</p>
               </div>
             </div>
           </div>
 
-          {/* الدروس المكتملة - 🆕 بيانات فعلية */}
+          {/* الدروس المكتملة */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
@@ -140,14 +197,12 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">الدروس المكتملة</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {progressData.completedLessons} / {progressData.totalLessons}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0 / 18</p>
               </div>
             </div>
           </div>
 
-          {/* الوقت المستغرق - 🆕 بيانات فعلية */}
+          {/* الوقت المستغرق */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center">
               <div className="p-2 bg-orange-100 rounded-lg">
@@ -155,14 +210,12 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">الوقت المستغرق</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatWatchTime(progressData.totalWatchTime)}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0 دقيقة</p>
               </div>
             </div>
           </div>
 
-          {/* النقاط - 🆕 بيانات فعلية */}
+          {/* النقاط */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -170,48 +223,11 @@ export default function DashboardPage() {
               </div>
               <div className="mr-4">
                 <p className="text-sm font-medium text-gray-600">النقاط</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {progressData.totalPoints}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0</p>
               </div>
             </div>
           </div>
         </div>
-
-        {/* 🆕 إضافة قسم للإنجازات */}
-        {achievements.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">إنجازاتك الأخيرة 🎉</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {achievements.slice(0, 3).map((achievement) => (
-                <div key={achievement.id} className="flex items-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <span className="text-3xl mr-3">{achievement.icon}</span>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{achievement.title}</h3>
-                    <p className="text-sm text-gray-600">{achievement.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 🆕 إضافة معلومات الـ Streak */}
-        {progressData.currentStreak > 0 && (
-          <div className="bg-gradient-to-r from-orange-400 to-red-500 rounded-lg p-6 mb-8 text-white">
-            <div className="flex items-center">
-              <span className="text-4xl mr-4">🔥</span>
-              <div>
-                <h2 className="text-2xl font-bold">
-                  {progressData.currentStreak} أيام متتالية!
-                </h2>
-                <p className="text-orange-100">
-                  أداء رائع! حافظ على هذا الإلتزام المميز
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -222,15 +238,10 @@ export default function DashboardPage() {
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <span className="text-2xl">🎯</span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mr-3">
-                  {progressData.completedLessons === 0 ? 'ابدأ الكورس' : 'متابعة التعلم'}
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-900 mr-3">ابدأ الكورس</h3>
               </div>
               <p className="text-gray-600 text-sm">
-                {progressData.completedLessons === 0 
-                  ? 'ابدأ رحلتك في تعلم التسويق الرقمي'
-                  : `متابعة من حيث توقفت - ${progressData.completedLessons} دروس مكتملة`
-                }
+                ابدأ رحلتك في تعلم التسويق الرقمي
               </p>
             </div>
           </Link>
@@ -266,31 +277,30 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* 🆕 Recent Activity - إذا كان هناك تقدم */}
-        {progressData.completedLessons > 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">النشاط الأخير</h2>
-            <div className="space-y-3">
-              <div className="flex items-center p-3 bg-green-50 rounded-lg">
-                <span className="text-green-600 mr-3">✅</span>
-                <div>
-                  <p className="text-gray-900 font-medium">أكملت {progressData.completedLessons} درس</p>
-                  <p className="text-gray-500 text-sm">إجمالي وقت المشاهدة: {formatWatchTime(progressData.totalWatchTime)}</p>
-                </div>
-              </div>
-              
-              {progressData.totalPoints > 0 && (
-                <div className="flex items-center p-3 bg-blue-50 rounded-lg">
-                  <span className="text-blue-600 mr-3">🏆</span>
-                  <div>
-                    <p className="text-gray-900 font-medium">حصلت على {progressData.totalPoints} نقطة</p>
-                    <p className="text-gray-500 text-sm">من خلال حل الاختبارات بنجاح</p>
-                  </div>
-                </div>
-              )}
+        {/* إرشادات للبداية */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">مرحباً بك في أكاديمية التسويق الرقمي! 🎉</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">خطوات البداية:</h3>
+              <ul className="text-gray-600 space-y-2">
+                <li>1. ابدأ بالفصل الأول: مقدمة في التسويق الرقمي</li>
+                <li>2. اتبع الدروس بالترتيب للحصول على أفضل النتائج</li>
+                <li>3. لا تنس حل الاختبارات في نهاية كل درس</li>
+                <li>4. طبق ما تعلمته باستخدام الاستراتيجيات المقدمة</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-2">نصائح للنجاح:</h3>
+              <ul className="text-gray-600 space-y-2">
+                <li>• خصص وقتاً ثابتاً يومياً للتعلم</li>
+                <li>• دون الملاحظات المهمة أثناء المشاهدة</li>
+                <li>• لا تتردد في إعادة مشاهدة الدروس</li>
+                <li>• طبق ما تعلمته على مشاريع حقيقية</li>
+              </ul>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -1,8 +1,9 @@
+// 📚 صفحة الكورس البسيطة - app/course/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface User {
   id: string
@@ -35,25 +36,41 @@ export default function CoursePage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [chapters, setChapters] = useState<Chapter[]>([])
+  
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     checkUser()
-    loadCourseData()
   }, [])
 
   const checkUser = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      console.log('🔍 Course page - checking user...')
       
-      if (!user) {
-        window.location.href = '/auth'
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      if (error) {
+        console.error('Session error:', error)
+      }
+
+      if (!session?.user) {
+        console.log('❌ No session in course page, redirecting...')
+        // ✅ تأخير قصير قبل إعادة التوجيه
+        setTimeout(() => {
+          window.location.href = '/auth?redirectTo=/course'
+        }, 100)
         return
       }
       
-      setUser(user as User)
+      console.log('✅ User found in course page:', session.user.email)
+      setUser(session.user as User)
+      loadCourseData()
+      
     } catch (error) {
-      console.error('خطأ في التحقق من المستخدم:', error)
-      window.location.href = '/auth'
+      console.error('خطأ في فحص المستخدم:', error)
+      setTimeout(() => {
+        window.location.href = '/auth?redirectTo=/course'
+      }, 100)
     } finally {
       setLoading(false)
     }
@@ -138,16 +155,35 @@ export default function CoursePage() {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
+    try {
+      console.log('🚪 Logging out from course page...')
+      await supabase.auth.signOut()
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Logout error:', error)
+      window.location.href = '/'
+    }
   }
 
+  // ✅ تحسين شاشة التحميل
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">جاري التحميل...</p>
+          <p className="text-gray-600">جاري تحميل الكورس...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ إذا لم يكن هناك مستخدم، أظهر شاشة فارغة (سيتم إعادة التوجيه)
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">جاري التحقق من صلاحية الوصول...</p>
         </div>
       </div>
     )
@@ -165,8 +201,8 @@ export default function CoursePage() {
               </Link>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
+              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                 لوحة التحكم
               </Link>
               <div className="text-sm text-gray-600">
@@ -174,7 +210,7 @@ export default function CoursePage() {
               </div>
               <button
                 onClick={handleLogout}
-                className="text-red-600 hover:text-red-700 text-sm font-medium"
+                className="text-red-600 hover:text-red-700 text-sm font-medium px-3 py-2"
               >
                 تسجيل الخروج
               </button>
@@ -206,6 +242,22 @@ export default function CoursePage() {
           </div>
         </div>
 
+        {/* Success Message */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-green-700">
+                <strong>مرحباً بك في صفحة الكورس!</strong> تم تحميل المحتوى بنجاح. يمكنك الآن البدء في رحلتك التعليمية.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Chapters List */}
         <div className="space-y-6">
           {chapters.map((chapter, index) => (
@@ -216,7 +268,7 @@ export default function CoursePage() {
                 onClick={() => toggleChapter(chapter.id)}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 rtl:space-x-reverse">
                     <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center">
                       <span className="text-blue-600 font-bold text-lg">{index + 1}</span>
                     </div>
@@ -225,7 +277,7 @@ export default function CoursePage() {
                         {chapter.title}
                       </h3>
                       <p className="text-gray-600 text-sm">{chapter.description}</p>
-                      <div className="flex items-center space-x-4 mt-2">
+                      <div className="flex items-center space-x-4 rtl:space-x-reverse mt-2">
                         <span className="text-sm text-blue-600 font-medium">
                           {chapter.totalLessons} دروس
                         </span>
@@ -236,7 +288,7 @@ export default function CoursePage() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 rtl:space-x-reverse">
                     {/* Progress Circle */}
                     <div className="relative w-12 h-12">
                       <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
@@ -289,7 +341,7 @@ export default function CoursePage() {
                             : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer'
                         }`}
                       >
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 rtl:space-x-reverse">
                           {/* Status Icon */}
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                             lesson.completed 
@@ -317,13 +369,13 @@ export default function CoursePage() {
                             <h4 className={`font-medium ${
                               lesson.isLocked ? 'text-gray-500' : 'text-gray-900'
                             }`}>
-                              {lessonIndex + 1}.{lesson.id - (chapter.id - 1) * 10} {lesson.title}
+                              {lessonIndex + 1}. {lesson.title}
                             </h4>
                             <p className="text-sm text-gray-500">المدة: {lesson.duration}</p>
                           </div>
                         </div>
                         
-                        {/* تم تحديث روابط الدروس هنا */}
+                        {/* أزرار الدروس */}
                         {!lesson.isLocked && (
                           <Link href={`/course/${chapter.id}/${lesson.id}`}>
                             <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200 hover:text-blue-700">

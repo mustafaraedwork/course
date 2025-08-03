@@ -1,10 +1,10 @@
-// 🔐 صفحة تسجيل الدخول المحدثة - app/auth/page.tsx
+// 🔐 صفحة المصادقة مع إصلاح redirectTo - app/auth/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -13,23 +13,54 @@ export default function AuthPage() {
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [checking, setChecking] = useState(true)
   
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') // 🆕 الحصول على الصفحة المطلوبة
+  const router = useRouter()
+  const redirectTo = searchParams.get('redirectTo')
+  const supabase = createClientComponentClient()
 
-  // 🆕 التحقق من المستخدم عند تحميل الصفحة
   useEffect(() => {
-    checkUser()
-  }, [])
+    let isMounted = true
 
-  const checkUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      // إذا كان مسجل دخوله، اذهب للصفحة المطلوبة أو Dashboard
-      const destination = redirectTo || '/dashboard'
-      window.location.href = destination
+    const checkUser = async () => {
+      try {
+        console.log('🔍 Auth page - checking user...', { redirectTo })
+        
+        // انتظار قصير للسماح للجلسة بالتحميل
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Session check error:', error)
+        }
+
+        if (isMounted) {
+          if (session?.user) {
+            console.log('✅ User already logged in, redirecting to:', redirectTo || 'dashboard')
+            const destination = redirectTo || '/dashboard'
+            // ✅ استخدام window.location مع التأكد من الوجهة
+            window.location.href = destination
+          } else {
+            console.log('❌ No user session found')
+            setChecking(false)
+          }
+        }
+      } catch (error) {
+        console.error('Error checking user:', error)
+        if (isMounted) {
+          setChecking(false)
+        }
+      }
     }
-  }
+
+    checkUser()
+
+    return () => {
+      isMounted = false
+    }
+  }, [redirectTo]) // ✅ إضافة redirectTo للـ dependencies
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,43 +69,83 @@ export default function AuthPage() {
 
     try {
       if (isLogin) {
-        // تسجيل الدخول
+        console.log('🔐 Attempting login...')
         const { data, error } = await supabase.auth.signInWithPassword({
-          email,
+          email: email.trim(),
           password,
         })
         
-        if (error) throw error
+        if (error) {
+          console.error('Login error:', error)
+          throw error
+        }
         
+        console.log('✅ Login successful, redirecting to:', redirectTo || 'dashboard')
         setMessage('تم تسجيل الدخول بنجاح! جاري التوجيه...')
         
-        // 🆕 التوجيه للصفحة المطلوبة أو Dashboard
+        // انتظار قصير ثم التوجيه للوجهة الصحيحة
         setTimeout(() => {
           const destination = redirectTo || '/dashboard'
+          console.log('Final redirect to:', destination)
           window.location.href = destination
         }, 1500)
         
       } else {
-        // إنشاء حساب جديد
+        console.log('📝 Attempting signup...')
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: email.trim(),
           password,
           options: {
             data: {
-              full_name: fullName,
+              full_name: fullName.trim(),
             }
           }
         })
         
-        if (error) throw error
+        if (error) {
+          console.error('Signup error:', error)
+          throw error
+        }
         
-        setMessage('تم إنشاء الحساب! يرجى تأكيد بريدك الإلكتروني.')
+        console.log('✅ Signup successful')
+        setMessage('تم إنشاء الحساب! يرجى تأكيد بريدك الإلكتروني للمتابعة.')
       }
     } catch (error: any) {
-      setMessage('خطأ: ' + error.message)
+      console.error('Auth error:', error)
+      let errorMessage = 'حدث خطأ غير متوقع'
+      
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'بيانات الدخول غير صحيحة'
+      } else if (error.message.includes('User already registered')) {
+        errorMessage = 'هذا البريد مسجل مسبقاً'
+      } else if (error.message.includes('Password should be at least')) {
+        errorMessage = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'
+      } else {
+        errorMessage = error.message
+      }
+      
+      setMessage('خطأ: ' + errorMessage)
+    } finally {
+      setLoading(false)
     }
-    
-    setLoading(false)
+  }
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">جاري التحقق...</p>
+            {redirectTo && (
+              <p className="text-sm text-gray-500 mt-2">
+                الوجهة: {redirectTo}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -89,11 +160,10 @@ export default function AuthPage() {
           {isLogin ? 'مرحباً بك مرة أخرى!' : 'انضم لآلاف الطلاب المتميزين'}
         </p>
         
-        {/* 🆕 رسالة توضيحية إذا كان يحاول الوصول لصفحة محمية */}
         {redirectTo && (
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800 text-center">
-              يرجى تسجيل الدخول للوصول إلى الصفحة المطلوبة
+              يرجى تسجيل الدخول للوصول إلى: <strong>{redirectTo}</strong>
             </p>
           </div>
         )}

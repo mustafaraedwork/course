@@ -1,353 +1,407 @@
-// 📚 صفحة الدرس - app/course/[chapter]/[lesson]/page.tsx
-'use client';
+// 📚 صفحة الكورس المُصححة - app/course/page.tsx
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import VideoPlayer from '@/components/VideoPlayer';
-import Quiz from '@/components/Quiz';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+
+interface User {
+  id: string
+  email: string
+  user_metadata: {
+    full_name?: string
+  }
+}
 
 interface Lesson {
-  id: string;
-  title: string;
-  description: string;
-  video_url: string;
-  duration: number;
-  notes?: string;
-  tips?: string;
-  order_index: number;
+  id: number
+  title: string
+  duration: string
+  completed: boolean
+  isLocked: boolean
 }
 
 interface Chapter {
-  id: string;
-  title: string;
-  lessons: Lesson[];
+  id: number
+  title: string
+  description: string
+  lessons: Lesson[]
+  totalLessons: number
+  completedLessons: number
+  progress: number
+  isExpanded: boolean
 }
 
-interface Question {
-  id: string;
-  type: 'multiple_choice' | 'true_false' | 'text';
-  question: string;
-  options?: string[];
-  correct_answer: string;
-  explanation: string;
-  points: number;
-}
-
-export default function LessonPage() {
-  const params = useParams();
-  const router = useRouter();
-  const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [chapter, setChapter] = useState<Chapter | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [videoCompleted, setVideoCompleted] = useState(false);
-  const [watchProgress, setWatchProgress] = useState(0);
-
-  const supabase = createClientComponentClient();
+export default function CoursePage() {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  
+  const router = useRouter()
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    loadLessonData();
-  }, [params.chapter, params.lesson]);
+    checkUserAndLoadData()
+  }, [])
 
-  const loadLessonData = async () => {
+  const checkUserAndLoadData = async () => {
     try {
-      setLoading(true);
-
-      // تحميل بيانات الدرس
-      const { data: lessonData, error: lessonError } = await supabase
-        .from('lessons')
-        .select(`
-          *,
-          chapter:chapters(
-            id,
-            title,
-            lessons(id, title, order_index)
-          )
-        `)
-        .eq('id', params.lesson)
-        .single();
-
-      if (lessonError) throw lessonError;
-
-      setLesson(lessonData);
-      setChapter(lessonData.chapter);
-
-      // تحميل الأسئلة
-      const { data: questionsData } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('lesson_id', params.lesson)
-        .order('order_index');
-
-      setQuestions(questionsData || []);
-
-      // تحقق من حالة الإكمال
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: progressData } = await supabase
-          .from('user_progress')
-          .select('completed, watch_time')
-          .eq('user_id', user.id)
-          .eq('lesson_id', params.lesson)
-          .single();
-
-        if (progressData) {
-          setVideoCompleted(progressData.completed);
-          if (lessonData.duration > 0) {
-            setWatchProgress((progressData.watch_time / lessonData.duration) * 100);
-          }
-        }
+      console.log('🔍 Checking user in course page...')
+      
+      // ✅ فحص المستخدم مع retry
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      if (error) {
+        console.error('Session error:', error)
+        router.push('/auth?redirectTo=/course')
+        return
       }
+      
+      if (!session?.user) {
+        console.log('No session found, redirecting to auth')
+        router.push('/auth?redirectTo=/course')
+        return
+      }
+      
+      console.log('✅ User session found:', session.user.email)
+      setUser(session.user as User)
+      
+      // تحميل بيانات الكورس
+      loadCourseData()
+      
     } catch (error) {
-      console.error('Error loading lesson:', error);
+      console.error('خطأ في التحقق من المستخدم:', error)
+      router.push('/auth?redirectTo=/course')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
-  const handleVideoProgress = (currentTime: number, percentage: number) => {
-    setWatchProgress(percentage);
-  };
-
-  const handleVideoComplete = () => {
-    setVideoCompleted(true);
-    if (questions.length > 0) {
-      setShowQuiz(true);
-    } else {
-      // الانتقال للدرس التالي إذا لم توجد أسئلة
-      goToNextLesson();
-    }
-  };
-
-  const handleQuizComplete = (score: number, passed: boolean) => {
-    setShowQuiz(false);
-    if (passed) {
-      // حفظ نتيجة الكويز
-      saveQuizResult(score);
-      // الانتقال للدرس التالي
-      setTimeout(() => {
-        goToNextLesson();
-      }, 2000);
-    }
-  };
-
-  const saveQuizResult = async (score: number) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase
-        .from('user_progress')
-        .upsert({
-          user_id: user.id,
-          lesson_id: lesson?.id,
-          quiz_score: score,
-          quiz_attempts: 1, // يمكن تحسينها لتتريعتد المحاولات
-          completed: true,
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-    } catch (error) {
-      console.error('Error saving quiz result:', error);
-    }
-  };
-
-  const goToNextLesson = () => {
-    if (!chapter || !lesson) return;
-
-    const currentIndex = chapter.lessons.findIndex(l => l.id === lesson.id);
-    const nextLesson = chapter.lessons[currentIndex + 1];
-
-    if (nextLesson) {
-      router.push(`/course/${params.chapter}/${nextLesson.id}`);
-    } else {
-      // العودة لصفحة الكورس إذا انتهت الدروس
-      router.push('/course');
-    }
-  };
-
-  const goToPreviousLesson = () => {
-    if (!chapter || !lesson) return;
-
-    const currentIndex = chapter.lessons.findIndex(l => l.id === lesson.id);
-    const previousLesson = chapter.lessons[currentIndex - 1];
-
-    if (previousLesson) {
-      router.push(`/course/${params.chapter}/${previousLesson.id}`);
-    }
-  };
-
-  if (loading) {
-    return <LoadingSpinner />;
   }
 
-  if (!lesson) {
+  const loadCourseData = () => {
+    // بيانات تجريبية للكورس
+    const courseData: Chapter[] = [
+      {
+        id: 1,
+        title: 'مقدمة في التسويق الرقمي',
+        description: 'تعرف على أساسيات التسويق الرقمي ومنصاته المختلفة',
+        totalLessons: 3,
+        completedLessons: 0,
+        progress: 0,
+        isExpanded: true,
+        lessons: [
+          { id: 1, title: 'ما هو التسويق الرقمي؟', duration: '15:30', completed: false, isLocked: false },
+          { id: 2, title: 'منصات التسويق الرئيسية', duration: '22:15', completed: false, isLocked: true },
+          { id: 3, title: 'وضع استراتيجية التسويق', duration: '18:45', completed: false, isLocked: true }
+        ]
+      },
+      {
+        id: 2,
+        title: 'Facebook و Instagram Ads',
+        description: 'تعلم إنشاء وإدارة الحملات الإعلانية على Facebook و Instagram',
+        totalLessons: 5,
+        completedLessons: 0,
+        progress: 0,
+        isExpanded: false,
+        lessons: [
+          { id: 4, title: 'إنشاء Business Manager', duration: '25:20', completed: false, isLocked: true },
+          { id: 5, title: 'إعداد Facebook Pixel', duration: '20:15', completed: false, isLocked: true },
+          { id: 6, title: 'إنشاء أول حملة إعلانية', duration: '35:30', completed: false, isLocked: true },
+          { id: 7, title: 'أنواع الحملات المختلفة', duration: '28:45', completed: false, isLocked: true },
+          { id: 8, title: 'تصميم الإعلانات الفعالة', duration: '32:10', completed: false, isLocked: true }
+        ]
+      },
+      {
+        id: 3,
+        title: 'تحسين الحملات',
+        description: 'تعلم كيفية قراءة الإحصائيات وتحسين أداء الحملات',
+        totalLessons: 4,
+        completedLessons: 0,
+        progress: 0,
+        isExpanded: false,
+        lessons: [
+          { id: 9, title: 'قراءة إحصائيات الحملات', duration: '30:25', completed: false, isLocked: true },
+          { id: 10, title: 'تحسين الاستهداف', duration: '27:15', completed: false, isLocked: true },
+          { id: 11, title: 'اختبارات A/B Testing', duration: '24:40', completed: false, isLocked: true },
+          { id: 12, title: 'تحسين الميزانيات', duration: '22:55', completed: false, isLocked: true }
+        ]
+      },
+      {
+        id: 4,
+        title: 'الاستراتيجيات المتقدمة',
+        description: 'تقنيات متقدمة لزيادة العائد على الاستثمار',
+        totalLessons: 6,
+        completedLessons: 0,
+        progress: 0,
+        isExpanded: false,
+        lessons: [
+          { id: 13, title: 'Retargeting المتقدم', duration: '33:20', completed: false, isLocked: true },
+          { id: 14, title: 'Lookalike Audiences', duration: '29:15', completed: false, isLocked: true },
+          { id: 15, title: 'حملات التجارة الإلكترونية', duration: '41:30', completed: false, isLocked: true },
+          { id: 16, title: 'تحليل ROI وKPIs', duration: '26:45', completed: false, isLocked: true },
+          { id: 17, title: 'أتمتة الحملات', duration: '35:10', completed: false, isLocked: true },
+          { id: 18, title: 'استراتيجيات التوسع', duration: '38:25', completed: false, isLocked: true }
+        ]
+      }
+    ]
+    
+    setChapters(courseData)
+  }
+
+  const toggleChapter = (chapterId: number) => {
+    setChapters(chapters.map(chapter => 
+      chapter.id === chapterId 
+        ? { ...chapter, isExpanded: !chapter.isExpanded }
+        : chapter
+    ))
+  }
+
+  const handleLogout = async () => {
+    try {
+      console.log('🚪 Logging out...')
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Logout error:', error)
+      }
+      router.push('/')
+    } catch (error) {
+      console.error('Logout error:', error)
+      // في حالة الخطأ، امسح التخزين المحلي وأعد التوجيه
+      if (typeof window !== 'undefined') {
+        localStorage.clear()
+        sessionStorage.clear()
+      }
+      router.push('/')
+    }
+  }
+
+  // ✅ تحسين شاشة التحميل
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">الدرس غير موجود</h1>
-          <button
-            onClick={() => router.back()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            العودة
-          </button>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">جاري تحميل الكورس...</p>
         </div>
       </div>
-    );
+    )
+  }
+
+  // ✅ التأكد من وجود المستخدم قبل العرض
+  if (!user) {
+    return null
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* الهيدر */}
-      <div className="bg-white shadow-sm border-b">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4 rtl:space-x-reverse">
-              <button
-                onClick={() => router.push('/course')}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">{lesson.title}</h1>
-                <p className="text-sm text-gray-500">{chapter?.title}</p>
-              </div>
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Link href="/dashboard" className="text-2xl font-bold text-blue-600">
+                أكاديمية التسويق الرقمي
+              </Link>
             </div>
             
-            <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              <div className="text-sm text-gray-500">
-                التقدم: {Math.round(watchProgress)}%
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
+              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+                لوحة التحكم
+              </Link>
+              <div className="text-sm text-gray-600">
+                مرحباً، {user?.user_metadata?.full_name || user?.email}
               </div>
-              {videoCompleted && (
-                <div className="flex items-center text-green-600">
-                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                  </svg>
-                  مكتمل
-                </div>
-              )}
+              <button
+                onClick={handleLogout}
+                className="text-red-600 hover:text-red-700 text-sm font-medium"
+              >
+                تسجيل الخروج
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* مشغل الفيديو والمحتوى */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-              <VideoPlayer
-                videoUrl={lesson.video_url}
-                lessonId={lesson.id}
-                lessonTitle={lesson.title}
-                duration={lesson.duration}
-                onProgress={handleVideoProgress}
-                onComplete={handleVideoComplete}
-              />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Course Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            كورس التسويق الرقمي الشامل
+          </h1>
+          <p className="text-lg text-gray-600 mb-6">
+            رحلة تعليمية شاملة من الصفر إلى الاحتراف في التسويق الرقمي
+          </p>
+          
+          {/* Overall Progress */}
+          <div className="bg-white rounded-lg p-6 shadow-sm border max-w-md mx-auto">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm font-medium text-gray-600">التقدم العام</span>
+              <span className="text-sm font-medium text-blue-600">0%</span>
             </div>
-
-            {/* وصف الدرس */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">{lesson.title}</h2>
-              <p className="text-gray-700 mb-6">{lesson.description}</p>
-              
-              {lesson.notes && (
-                <div className="bg-blue-50 border-r-4 border-blue-400 p-4 mb-4">
-                  <h3 className="font-semibold text-blue-900 mb-2">ملاحظات المدرب</h3>
-                  <p className="text-blue-800">{lesson.notes}</p>
-                </div>
-              )}
-
-              {lesson.tips && (
-                <div className="bg-green-50 border-r-4 border-green-400 p-4">
-                  <h3 className="font-semibold text-green-900 mb-2">نصائح مهمة</h3>
-                  <p className="text-green-800">{lesson.tips}</p>
-                </div>
-              )}
+            <div className="w-full bg-gray-200 rounded-full h-3">
+              <div className="bg-blue-600 h-3 rounded-full transition-all duration-300" style={{ width: '0%' }}></div>
             </div>
-
-            {/* أزرار التنقل */}
-            <div className="flex justify-between">
-              <button
-                onClick={goToPreviousLesson}
-                className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                disabled={!chapter?.lessons || chapter.lessons.findIndex(l => l.id === lesson.id) === 0}
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                الدرس السابق
-              </button>
-
-              <button
-                onClick={() => setShowQuiz(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                disabled={!videoCompleted || questions.length === 0}
-              >
-                {questions.length > 0 ? 'بدء الاختبار' : 'إنهاء الدرس'}
-              </button>
-
-              <button
-                onClick={goToNextLesson}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                disabled={!videoCompleted}
-              >
-                الدرس التالي
-                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+            <p className="text-sm text-gray-500 mt-2">0 من 18 درس مكتمل</p>
           </div>
+        </div>
 
-          {/* الشريط الجانبي */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="font-bold text-gray-900 mb-4">دروس {chapter?.title}</h3>
-              <div className="space-y-2">
-                {chapter?.lessons?.map((chapterLesson, index) => (
-                  <button
-                    key={chapterLesson.id}
-                    onClick={() => router.push(`/course/${params.chapter}/${chapterLesson.id}`)}
-                    className={`w-full text-right p-3 rounded-lg transition-colors ${
-                      chapterLesson.id === lesson.id
-                        ? 'bg-blue-50 border-2 border-blue-200 text-blue-700'
-                        : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{index + 1}. {chapterLesson.title}</span>
-                      <div className="flex items-center">
-                        {chapterLesson.id === lesson.id && videoCompleted && (
-                          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                          </svg>
-                        )}
+        {/* Chapters List */}
+        <div className="space-y-6">
+          {chapters.map((chapter, index) => (
+            <div key={chapter.id} className="bg-white rounded-lg shadow-sm border overflow-hidden">
+              {/* Chapter Header */}
+              <div 
+                className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => toggleChapter(chapter.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4 rtl:space-x-reverse">
+                    <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center">
+                      <span className="text-blue-600 font-bold text-lg">{index + 1}</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-1">
+                        {chapter.title}
+                      </h3>
+                      <p className="text-gray-600 text-sm">{chapter.description}</p>
+                      <div className="flex items-center space-x-4 rtl:space-x-reverse mt-2">
+                        <span className="text-sm text-blue-600 font-medium">
+                          {chapter.totalLessons} دروس
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {chapter.completedLessons} مكتمل
+                        </span>
                       </div>
                     </div>
-                  </button>
-                ))}
+                  </div>
+                  
+                  <div className="flex items-center space-x-4 rtl:space-x-reverse">
+                    {/* Progress Circle */}
+                    <div className="relative w-12 h-12">
+                      <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="m18,2.0845 a 15.9155,15.9155 0 0,1 0,31.831 a 15.9155,15.9155 0 0,1 0,-31.831"
+                          fill="none"
+                          stroke="#e5e7eb"
+                          strokeWidth="3"
+                        />
+                        <path
+                          d="m18,2.0845 a 15.9155,15.9155 0 0,1 0,31.831 a 15.9155,15.9155 0 0,1 0,-31.831"
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="3"
+                          strokeDasharray={`${chapter.progress}, 100`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-semibold text-blue-600">
+                          {chapter.progress}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Expand Icon */}
+                    <svg
+                      className={`w-5 h-5 text-gray-400 transition-transform ${
+                        chapter.isExpanded ? 'rotate-180' : ''
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
               </div>
+
+              {/* Lessons List */}
+              {chapter.isExpanded && (
+                <div className="border-t bg-gray-50">
+                  <div className="p-4 space-y-2">
+                    {chapter.lessons.map((lesson, lessonIndex) => (
+                      <div 
+                        key={lesson.id} 
+                        className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
+                          lesson.isLocked 
+                            ? 'bg-gray-100 border-gray-200 opacity-60' 
+                            : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3 rtl:space-x-reverse">
+                          {/* Status Icon */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            lesson.completed 
+                              ? 'bg-green-100 text-green-600' 
+                              : lesson.isLocked 
+                                ? 'bg-gray-200 text-gray-400'
+                                : 'bg-blue-100 text-blue-600'
+                          }`}>
+                            {lesson.completed ? (
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            ) : lesson.isLocked ? (
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <h4 className={`font-medium ${
+                              lesson.isLocked ? 'text-gray-500' : 'text-gray-900'
+                            }`}>
+                              {lessonIndex + 1}. {lesson.title}
+                            </h4>
+                            <p className="text-sm text-gray-500">المدة: {lesson.duration}</p>
+                          </div>
+                        </div>
+                        
+                        {/* أزرار الدروس */}
+                        {!lesson.isLocked && (
+                          <Link href={`/course/${chapter.id}/${lesson.id}`}>
+                            <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200 hover:text-blue-700">
+                              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                              </svg>
+                              {lesson.completed ? 'إعادة المشاهدة' : 'مشاهدة الدرس'}
+                            </button>
+                          </Link>
+                        )}
+                        
+                        {/* للدروس المقفلة */}
+                        {lesson.isLocked && (
+                          <div className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
+                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            </svg>
+                            مقفل
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          ))}
+        </div>
+
+        {/* Bottom Navigation */}
+        <div className="mt-8 text-center">
+          <Link 
+            href="/dashboard"
+            className="inline-flex items-center px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            ← العودة للوحة التحكم
+          </Link>
         </div>
       </div>
-
-      {/* مكون الاختبار */}
-      {showQuiz && questions.length > 0 && (
-        <Quiz
-          questions={questions}
-          onComplete={handleQuizComplete}
-          onClose={() => setShowQuiz(false)}
-        />
-      )}
     </div>
-  );
+  )
 }
